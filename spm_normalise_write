@@ -1,0 +1,70 @@
+#!/bin/bash
+#
+# Setup (with option to run) SPM12 normalise write module using shell 
+# script invoking matlab.
+#
+# Usage: spm_normalise_write sourceimgfn deffn vxresample mbfn rf
+#
+# otherimgfn - Singular source image (to be normalised), or text filename
+#              with fullpaths per row per image.
+# deffn - Deformation parameter fullpath.
+# vxresample - Voxel resampling resolution. E.g. 3,3,3
+# mbfn - Matlab batch output file name.
+# rf - flag to run matlabbatch, 0: no, 1: yes
+#
+# 20220519 Created by Josh Goh.
+
+# Assign parameters
+otherimgfn=${1}
+deffn=${2}
+vxresample=${3}
+mbfn=${4}
+rf=${5}
+
+# Call matlab with input script
+unset DISPLAY
+matlab -nosplash > matlab.out << EOF
+  settings;
+  matlabbatch{1,1}.spm.spatial.normalise.write.subj.def = {'$deffn'};
+  [p n e] = fileparts('${otherimgfn}');
+  if strcmp(e,'.nii')
+	ni = niftiinfo('${otherimgfn}');
+	if length(ni.ImageSize)==4
+		nvols = ni.ImageSize(4);
+		for t = 1:nvols,
+			temp(t).epivol = ['${otherimgfn},' num2str(t)];
+		end;
+		other = cellstr(strvcat(temp.epivol));
+	else
+		other = '${otherimgfn},1';
+	end
+  else
+	S = textread('${otherimgfn}','%s');
+	nfiles = size(S,1);
+	i=1;
+	for r = 1:nfiles,
+		ni = niftiinfo(S{r});
+		if length(ni.ImageSize)==4
+			nvols = ni.ImageSize(4);
+			for t = 1:nvols,
+				temp(i).epivol = [deblank(S{r}) ',' num2str(t)];
+				i=i+1;
+			end;
+		else
+			temp(i).epivol = '${otherimgfn},1';
+			i=i+1;
+		end	
+	end
+	other = cellstr(strvcat(temp.epivol));
+  end
+  matlabbatch{1,1}.spm.spatial.normalise.write.subj.resample = other;
+  matlabbatch{1,1}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70; 78 76 85];
+  matlabbatch{1,1}.spm.spatial.normalise.write.woptions.vox = [${vxresample}];
+  matlabbatch{1,1}.spm.spatial.normalise.write.woptions.interp = 4;
+  matlabbatch{1,1}.spm.spatial.normalise.write.woptions.prefix = 'w';
+  save('${mbfn}','matlabbatch');
+  if ${rf},
+    spm_jobman('run',matlabbatch);
+  end
+exit;
+EOF
