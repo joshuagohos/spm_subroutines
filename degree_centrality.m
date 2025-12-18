@@ -1,5 +1,4 @@
-% Script to compute degree centrality for AXC rsfMRI data (vox size = 2.3 mm iso,
-% TR = 650 ms, 626 volumes).
+% Script to compute degree centrality for preprocessed rsfMRI data.
 
 clear all
 
